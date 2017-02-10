@@ -1,11 +1,22 @@
 package main
 
+// image a microservice that takes a stream of raw graph data and formats it into nodes and edges
+// for ingestion by a dynamic graph builder
+// fan out the processing, then merge in the results into one channel
+// we don't cache or look up hashes for previously seen strings: for simplicity we trade raw computation
+// for memory and storage
+// data csv comes from http://kgullikson88.github.io/blog/static/PyPiAnalyzer.html
+// sort of a follow up the spark graphx code:
+// https://github.com/Minger/experiments/blob/master/spark-packages-pagerank.scala
+
 import (
 	"encoding/csv"
+	"fmt"
 	"github.com/dmiller/go-seq/murmur3"
 	"io"
 	"log"
 	"os"
+	"sync"
 )
 
 // Edge joins two nodes
@@ -71,6 +82,29 @@ func processRow(in <-chan []string) <-chan interface{} {
 	return out
 }
 
+// lifted with slight modificaton from the docs
+func merge(cs [4]<-chan interface{}) <-chan interface{} {
+	var wg sync.WaitGroup
+	out := make(chan interface{})
+
+	output := func(c <-chan interface{}) {
+		for n := range c {
+			out <- n
+		}
+		wg.Done()
+	}
+	wg.Add(len(cs))
+	for _, c := range cs {
+		go output(c)
+	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
+}
+
 func main() {
 	file, err := os.Open("requirements.csv")
 	if err != nil {
@@ -79,6 +113,16 @@ func main() {
 
 	fileCh := processCSV(file)
 
-	graphCh := make(chan interface{})
+	a := processRow(fileCh)
+	b := processRow(fileCh)
+	c := processRow(fileCh)
+	d := processRow(fileCh)
 
+	var chans = [4]<-chan interface{}{a, b, c, d}
+	results := merge(chans)
+
+	for {
+		graph := <-results
+		fmt.Printf("%+v\n", graph)
+	}
 }
