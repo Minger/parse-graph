@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"github.com/dmiller/go-seq/murmur3"
 	"io"
 	"log"
 	"os"
@@ -9,14 +10,14 @@ import (
 
 // Edge joins two nodes
 type Edge struct {
-	Source       uint64
-	Destination  uint64
+	Source       uint32
+	Destination  uint32
 	Relationship string
 }
 
 // Node represents a package
 type Node struct {
-	VertexID uint64
+	VertexID uint32
 	Name     string
 }
 
@@ -49,10 +50,20 @@ func processRow(in <-chan []string) <-chan interface{} {
 	go func() {
 		for {
 			row := <-in
-			source := row[1]
-			if len(source) > 0 {
-				sourceHash := HashString(source)
-				edge := make(Edge)
+			destination := row[1]
+			if len(destination) > 0 {
+				destinationHash := murmur3.HashString(destination)
+				node := Node{destinationHash, destination}
+				out <- node
+
+				source := row[2]
+				if len(source) > 0 {
+					sourceHash := murmur3.HashString(source)
+					node := Node{sourceHash, source}
+					out <- node
+					edge := Edge{sourceHash, destinationHash, "requires"}
+					out <- edge
+				}
 			}
 		}
 		close(out)
