@@ -2,11 +2,11 @@ package main
 
 // image a microservice that takes a stream of raw graph data and formats it into nodes and edges
 // for ingestion by a dynamic graph builder
-// fan out the processing, then merge in the results into one channel
+// fan out the processing, then fan in the results to one channel
 // we don't cache or look up hashes for previously seen strings: for simplicity we trade raw computation
 // for memory and storage
 // data csv comes from http://kgullikson88.github.io/blog/static/PyPiAnalyzer.html
-// sort of a follow up the spark graphx code:
+// a follow up the spark graphx code:
 // https://github.com/Minger/experiments/blob/master/spark-packages-pagerank.scala
 
 import (
